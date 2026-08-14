@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/png" href="assets/logo.png">
 </head>
 <body>
 
@@ -18,8 +19,11 @@
 <header class="site-header" id="top">
   <div class="wrap header-inner">
     <a class="brand" href="#top">
-      <span class="brand-mark">L&amp;D</span>
-      <span class="brand-name">Design Firm</span>
+      <img class="brand-logo" src="assets/logo.png" alt="L&amp;D Design Firm logo">
+      <span class="brand-text">
+        <span class="brand-mark">L&amp;D</span>
+        <span class="brand-name">Design Firm</span>
+      </span>
     </a>
     <nav class="main-nav" id="mainNav">
       <a href="#about">About</a>
@@ -41,9 +45,7 @@
 </header>
 
 <section class="hero">
-  <div class="hero-media placeholder-photo" data-label="Hero photo — signature project (e.g. Girnar 14c living room)">
-    <div class="ph-tag">Add hero photo</div>
-  </div>
+  <div class="hero-media has-photo" style="background-image:url('assets/hero.jpg')"></div>
   <div class="hero-content wrap">
     <p class="eyebrow">Architectural Design Studio, Chennai</p>
     <h1>Premium Interiors.<br>Minimal. Functional. Timeless.</h1>
@@ -120,17 +122,17 @@
     <p class="section-intro center">A selection of recent projects — office cabins, living spaces, and full-home turnkeys across Chennai. Replace each tile below with the matching photo or reel from Instagram.</p>
 
     <div class="gallery" id="gallery">
-      <div class="g-item placeholder-photo" data-label="Beige office cabin — minimal built-ins">
+      <div class="g-item has-photo" style="background-image:url('assets/portfolio-1-office-cabin.jpg')">
         <div class="ph-tag">Office Cabin</div>
       </div>
       <div class="g-item placeholder-photo" data-label="Marble niche detail, in progress">
         <div class="ph-tag">Marble Detailing</div>
       </div>
-      <div class="g-item placeholder-photo" data-label="Living room, TV feature wall + wood ceiling fan">
+      <div class="g-item has-photo" style="background-image:url('assets/portfolio-3-living-room.jpg')">
         <div class="ph-tag">Living Room</div>
       </div>
-      <div class="g-item placeholder-photo" data-label="Girnar 14c — full project">
-        <div class="ph-tag">Girnar 14c</div>
+      <div class="g-item has-photo" style="background-image:url('assets/portfolio-4-girnar-6c.jpg')">
+        <div class="ph-tag">Girnar 6c</div>
       </div>
       <div class="g-item placeholder-photo" data-label="Project: Rainbow Gi. — architectural floor plan">
         <div class="ph-tag">Floor Plan — Rainbow</div>
@@ -218,9 +220,12 @@
 
 <footer class="site-footer">
   <div class="wrap footer-inner">
-    <div class="brand">
-      <span class="brand-mark">L&amp;D</span>
-      <span class="brand-name">Design Firm</span>
+    <div class="brand footer-brand">
+      <img class="brand-logo footer-logo" src="assets/logo.png" alt="L&amp;D Design Firm logo">
+      <span class="brand-text">
+        <span class="brand-mark">L&amp;D</span>
+        <span class="brand-name">Design Firm</span>
+      </span>
     </div>
     <p>Architectural Designer · Premium Interiors · Chennai</p>
     <a href="https://www.instagram.com/lnd_designfirm/" target="_blank" rel="noopener">Instagram @lnd_designfirm</a>
