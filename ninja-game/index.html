@@ -18,12 +18,12 @@
 <canvas id="c" width="960" height="544"></canvas>
 <div id="touch">
   <div class="g"><button data-k="ArrowLeft">◀</button><button data-k="ArrowRight">▶</button><button data-k="Space">JUMP</button></div>
-  <div class="g" style="justify-content:flex-end"><button data-k="KeyJ">Kunai</button><button data-k="KeyK">Rasen</button><button data-k="KeyL">Clone</button><button data-k="Digit1">Sage</button><button data-k="Digit2">Kyuubi</button><button data-k="Digit3">Final</button><button data-k="Enter">OK</button></div>
+  <div class="g" style="justify-content:flex-end"><button data-k="KeyZ">Kunai</button><button data-k="KeyX">Rasen</button><button data-k="KeyC">Clone</button><button data-k="Digit1">Sage</button><button data-k="Digit2">Kyuubi</button><button data-k="Digit3">Final</button><button data-k="Enter">OK</button></div>
 </div>
 <script>
 'use strict';
 /* ====================== CONSTANTS & SETUP ====================== */
-const T = 32, GW = 160, GH = 17, VW = 960, VH = 544, GRAV = 0.6;
+let GW = 160; const T = 32, GH = 17, VW = 960, VH = 544, GRAV = 0.6;
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const keys = {}, pressed = {};
 const down = c => keys[c], jp = c => pressed[c];
@@ -76,17 +76,28 @@ const CLONES_BY_FORM = { base: 3, sage: 4, kurama: 5, baryon: 6 };
 /* ====================== STATE ====================== */
 let grid, enemies, projs, parts, items, coinsL, clones, popups, blockItems, bumps;
 let P, cam, shake = 0, flash = 0, flashCol = '#fff', banner = null, state = 'title';
-let score = 0, coinCount = 0, lives = 3, cp = 3, bossDead = false, boss = null, time = 0, hitstop = 0;
+let level = 1, LV = null, score = 0, coinCount = 0, lives = 3, cp = 3, bossDead = false, boss = null, time = 0, hitstop = 0;
 
-const solid = (tx, ty) => tx < 0 || tx >= GW ? true : (ty < 0 || ty >= GH ? false : grid[ty][tx] !== 0);
+const solid = (tx, ty) => tx < 0 || tx >= GW ? true : (ty < 0 || ty >= GH ? false : (grid[ty][tx] !== 0 && grid[ty][tx] !== 7));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/* ====================== LEVELS ====================== */
+const LEVELS = [null,
+  { name: 'Leaf Village', sub: 'Reach the scroll at the end of the village!', gw: 160, gate: 152, flag: 157, boss: 142, arena: 128, cps: [64, 103],
+    night: false, eSpeed: 1.1, tCd: 100, sSpeed: 4, bossHp: 36, bossSpd: 1, regen: 5, hard: false,
+    gaps: [[22,24],[43,45],[68,70],[88,92],[106,108],[120,122]] },
+  { name: 'Night Raid', sub: 'Level 2 - spikes, wider gaps, faster ninja!', gw: 200, gate: 192, flag: 197, boss: 180, arena: 166, cps: [70, 125],
+    night: true, eSpeed: 1.9, tCd: 55, sSpeed: 5.2, bossHp: 64, bossSpd: 1.35, regen: 3.5, hard: true,
+    gaps: [[14,17],[30,34],[48,51],[58,62],[76,79],[84,88],[100,104],[112,115],[130,134],[140,143],[150,154],[162,164]] },
+];
+function setLevel(n) { level = n; LV = LEVELS[n]; GW = LV.gw; }
 
 /* ====================== LEVEL ====================== */
 function buildLevel() {
   grid = Array.from({ length: GH }, () => new Uint8Array(GW));
   enemies = []; projs = []; parts = []; items = []; coinsL = []; clones = []; popups = []; blockItems = {}; bumps = {};
-  const gaps = [[22,24],[43,45],[68,70],[88,92],[106,108],[120,122]];
+  const gaps = LV.gaps;
   for (let x = 0; x < GW; x++) {
     if (gaps.some(g => x >= g[0] && x <= g[1])) continue;
     grid[15][x] = 1; grid[16][x] = 1;
@@ -94,38 +105,65 @@ function buildLevel() {
   const plat = (x, y, n, t = 2) => { for (let i = 0; i < n; i++) grid[y][x + i] = t; };
   const q = (x, y, item = 'scroll') => { grid[y][x] = 3; blockItems[x + ',' + y] = item; };
   const pipe = (x, h) => { for (let ty = 15 - h; ty < 15; ty++) { grid[ty][x] = 5; grid[ty][x + 1] = 5; } };
-
-  plat(10, 11, 5); q(12, 11); q(8, 11);
-  plat(16, 8, 3); q(17, 8);
-  pipe(30, 2); pipe(36, 3);
-  plat(33, 10, 4); q(34, 10, 'ramen');
-  plat(48, 11, 6); q(50, 11); q(52, 11);
-  pipe(56, 2); plat(58, 8, 4); q(59, 8);
-  plat(72, 11, 4); q(73, 11);
-  pipe(78, 3); plat(84, 10, 5); q(86, 10);
-  plat(90, 12, 1, 5);
-  pipe(98, 2); plat(100, 11, 3);
-  plat(110, 10, 4); q(111, 10); q(112, 10, 'ramen');
-  pipe(114, 4);
-  plat(126, 11, 4); q(127, 11, 'ramen'); plat(132, 8, 3); q(133, 8);
-  for (let ty = 0; ty < 15; ty++) { grid[ty][152] = 6; grid[ty][153] = 6; }   // seal gate (opens when boss falls)
-
-  const grunts = [14, 28, 40, 52, 62, 75, 95, 102, 116, 125];
-  const throwers = [20, 38, 60, 80, 104, 118, 130];
-  grunts.forEach(x => enemies.push(mkEnemy('grunt', x * T, 100)));
-  throwers.forEach(x => enemies.push(mkEnemy('thrower', x * T, 100)));
-  boss = mkEnemy('boss', 142 * T, 100); enemies.push(boss); bossDead = false;
-
+  const spikes = (x, n) => { for (let i = 0; i < n; i++) grid[14][x + i] = 7; };
   const row = (x, y, n) => { for (let i = 0; i < n; i++) coinsL.push({ x: (x + i) * T + 8, y: y * T + 8, w: 16, h: 16 }); };
   const arc = (x, n, y) => { for (let i = 0; i < n; i++) coinsL.push({ x: (x + i) * T + 8, y: (y - Math.sin(i / (n - 1) * Math.PI) * 2.2) * T + 8, w: 16, h: 16 }); };
-  row(11, 10, 3); row(16, 7, 3); arc(21, 5, 12); arc(42, 5, 12); row(48, 10, 5); row(58, 7, 4);
-  arc(67, 5, 12); row(73, 10, 3); arc(87, 7, 12); row(100, 10, 3); arc(105, 5, 12); row(110, 9, 4);
-  arc(119, 5, 12); row(126, 10, 4); row(132, 7, 3); row(137, 13, 6);
+  let grunts, throwers;
+
+  if (level === 1) {
+    plat(10, 11, 5); q(12, 11); q(8, 11);
+    plat(16, 8, 3); q(17, 8);
+    pipe(30, 2); pipe(36, 3);
+    plat(33, 10, 4); q(34, 10, 'ramen');
+    plat(48, 11, 6); q(50, 11); q(52, 11);
+    pipe(56, 2); plat(58, 8, 4); q(59, 8);
+    plat(72, 11, 4); q(73, 11);
+    pipe(78, 3); plat(84, 10, 5); q(86, 10);
+    plat(90, 12, 1, 5);
+    pipe(98, 2); plat(100, 11, 3);
+    plat(110, 10, 4); q(111, 10); q(112, 10, 'ramen');
+    pipe(114, 4);
+    plat(126, 11, 4); q(127, 11, 'ramen'); plat(132, 8, 3); q(133, 8);
+    grunts = [14, 28, 40, 52, 62, 75, 95, 102, 116, 125];
+    throwers = [20, 38, 60, 80, 104, 118, 130];
+    row(11, 10, 3); row(16, 7, 3); arc(21, 5, 12); arc(42, 5, 12); row(48, 10, 5); row(58, 7, 4);
+    arc(67, 5, 12); row(73, 10, 3); arc(87, 7, 12); row(100, 10, 3); arc(105, 5, 12); row(110, 9, 4);
+    arc(119, 5, 12); row(126, 10, 4); row(132, 7, 3); row(137, 13, 6);
+  } else {
+    [[32,12],[60,11],[86,12],[102,12],[113,12],[132,12],[141,12],[152,12]].forEach(f => plat(f[0], f[1], 1, 5));   // lone stepping stones
+    plat(8, 11, 3); q(9, 11);
+    plat(20, 10, 3); q(21, 10);
+    pipe(26, 3); pipe(44, 3);
+    plat(36, 9, 4); q(37, 9, 'ramen');
+    plat(54, 10, 5); q(56, 10);
+    plat(66, 8, 4); q(67, 8);
+    pipe(70, 3);
+    plat(80, 10, 3); q(81, 10);
+    plat(92, 9, 4); q(93, 9, 'ramen');
+    pipe(96, 2); pipe(123, 3);
+    plat(108, 10, 4); q(109, 10);
+    plat(118, 9, 4); q(119, 9);
+    plat(128, 10, 3);
+    plat(136, 8, 4); q(137, 8, 'ramen');
+    plat(148, 10, 3);
+    plat(156, 9, 4); q(157, 9);
+    plat(168, 10, 3); q(169, 10, 'ramen');
+    [[22,3],[40,3],[64,4],[73,3],[90,3],[107,3],[118,4],[126,4],[137,3],[147,3],[158,4],[168,4]].forEach(sp => spikes(sp[0], sp[1]));
+    grunts = [10, 19, 28, 38, 47, 56, 66, 74, 82, 90, 98, 106, 119, 127, 138, 148, 157, 170];
+    throwers = [21, 29, 41, 53, 67, 73, 92, 108, 120, 127, 137, 144, 159, 169];
+    gaps.forEach(g => arc(g[0] - 1, g[1] - g[0] + 3, 12));
+    row(9, 10, 3); row(37, 8, 3); row(67, 7, 3); row(93, 8, 3); row(137, 7, 3); row(169, 9, 3);
+  }
+  for (let ty = 0; ty < 15; ty++) { grid[ty][LV.gate] = 6; grid[ty][LV.gate + 1] = 6; }   // seal gate (opens when boss falls)
+  grunts.forEach(x => enemies.push(mkEnemy('grunt', x * T, 100)));
+  throwers.forEach(x => enemies.push(mkEnemy('thrower', x * T, 100)));
+  boss = mkEnemy('boss', LV.boss * T, 100); enemies.push(boss); bossDead = false;
 }
 function mkEnemy(type, x, y) {
   const e = { type, x, y, vx: 0, vy: 0, w: 24, h: 30, hp: 1, dir: -1, on: false, cd: rnd(30, 90), flash: 0, dead: false, t: 0 };
-  if (type === 'thrower') { e.hp = 2; e.cd = rnd(40, 100); }
-  if (type === 'boss') { e.w = 46; e.h = 62; e.hp = e.maxhp = 36; e.cd = 100; e.mode = 'idle'; e.active = false; }
+  if (type === 'thrower') { e.hp = LV.hard ? 3 : 2; e.cd = rnd(40, LV.tCd); }
+  if (type === 'grunt' && LV.hard) e.hp = 2;
+  if (type === 'boss') { e.w = 46; e.h = 62; e.hp = e.maxhp = LV.bossHp; e.cd = 100; e.mode = 'idle'; e.active = false; }
   return e;
 }
 
@@ -134,10 +172,11 @@ function newPlayer(x) {
   return { x, y: 11 * T, w: 22, h: 30, vx: 0, vy: 0, face: 1, on: false, hp: 5, maxhp: 5, chakra: 40, form: 'base',
     atk: 0, inv: 0, jbuf: 0, coyote: 0, jumps: 0, charge: 0, rasT: 0, rasHit: null, hist: [], anim: 0, dead: false, deadT: 0, bhp: 0, throwT: 0 };
 }
-function startGame() {
-  score = 0; coinCount = 0; lives = 3; cp = 3; time = 0;
+function startGame() { score = 0; coinCount = 0; lives = 3; loadLevel(1); }
+function loadLevel(n) {
+  setLevel(n); cp = 3; time = 0;
   buildLevel(); P = newPlayer(3 * T); cam = { x: 0 }; state = 'play';
-  banner = { t: 150, text: 'SHINOBI RUN', sub: 'Reach the scroll at the end of the village!', col: '#ffb02e' };
+  banner = { t: 150, text: 'LEVEL ' + n + ': ' + LV.name.toUpperCase(), sub: LV.sub, col: LV.night ? '#b79cff' : '#ffb02e' };
 }
 function respawn() {
   const keep = { chakra: Math.max(40, P.chakra) };
@@ -237,7 +276,7 @@ function killEnemy(e) {
   if (e.type === 'grunt' || e.type === 'thrower') coinsL.push({ x: e.x + 4, y: e.y, w: 16, h: 16 });
   if (e.type === 'boss') {
     bossDead = true; shake = 24; flash = 30; flashCol = '#fff'; sfx('boss');
-    for (let ty = 0; ty < 15; ty++) { grid[ty][152] = 0; grid[ty][153] = 0; burst(152 * T + 32, ty * T + 16, 4, '#c8a2ff', 3, 6, 40, 0.05); }
+    for (let ty = 0; ty < 15; ty++) { grid[ty][LV.gate] = 0; grid[ty][LV.gate + 1] = 0; burst(LV.gate * T + 32, ty * T + 16, 4, '#c8a2ff', 3, 6, 40, 0.05); }
     setBanner('SEAL BROKEN!', 'Grab the scroll to finish the mission!', '#c8a2ff');
   }
 }
@@ -280,19 +319,19 @@ function updatePlayer() {
     return;
   }
   const L = down('ArrowLeft') || down('KeyA'), R = down('ArrowRight') || down('KeyD');
-  const jumpHeld = down('Space') || down('ArrowUp') || down('KeyW') || down('KeyZ');
-  const jumpPressed = jp('Space') || jp('ArrowUp') || jp('KeyW') || jp('KeyZ');
+  const jumpHeld = down('Space') || down('ArrowUp') || down('KeyW');
+  const jumpPressed = jp('Space') || jp('ArrowUp') || jp('KeyW');
   const dirIn = (R ? 1 : 0) - (L ? 1 : 0);
 
   // forms / abilities
   if (jp('Digit1')) setForm('sage');
   if (jp('Digit2')) setForm('kurama');
   if (jp('Digit3')) setForm('baryon');
-  if (jp('KeyL')) summonClones();
-  if (jp('KeyK')) startRasengan();
+  if (jp('KeyC')) summonClones();
+  if (jp('KeyX')) startRasengan();
   if (P.atk > 0) P.atk--;
   if (P.throwT > 0) P.throwT--;
-  if ((jp('KeyJ') || (down('KeyJ') && P.form === 'baryon')) && P.atk <= 0 && !P.charge) {
+  if ((jp('KeyZ') || (down('KeyZ') && P.form === 'baryon')) && P.atk <= 0 && !P.charge) {
     fireKunai(P.x + 11 + P.face * 12, P.y + 14, P.face, P.form); P.atk = F.kCd; P.throwT = 8; sfx('kunai');
   }
 
@@ -305,7 +344,7 @@ function updatePlayer() {
       const c = { sage: '#ffb347', kurama: '#ffe14a', baryon: '#ff6a2a' }[P.form];
       parts.push({ x: P.x + rnd(0, P.w), y: P.y + rnd(0, P.h), vx: rnd(-0.4, 0.4), vy: rnd(-1.6, -0.6), life: 26, max: 26, col: c, size: rnd(2, 5), grav: 0 });
     }
-  } else P.chakra = Math.min(100, P.chakra + 5 / 60);
+  } else P.chakra = Math.min(100, P.chakra + LV.regen / 60);
   const nf = FORMS[P.form];
 
   // rasengan states
@@ -353,9 +392,14 @@ function updatePlayer() {
   P.anim += Math.abs(P.vx) * 0.12;
   P.hist.unshift({ x: P.x, y: P.y, face: P.face, on: P.on, vx: P.vx, anim: P.anim });
   if (P.hist.length > 90) P.hist.pop();
-  if (P.x / T > 63 && cp < 64) cp = 64;
-  if (P.x / T > 102 && cp < 103) cp = 103;
+  for (const c of LV.cps) if (P.x / T > c - 1 && cp < c) cp = c;
 
+  // spikes
+  if (P.form !== 'baryon') {
+    const sy = Math.floor((P.y + P.h - 4) / T);
+    for (let tx = Math.floor(P.x / T); tx <= Math.floor((P.x + P.w - 1) / T); tx++)
+      if (grid[sy] && grid[sy][tx] === 7 && P.inv <= 0) { hurtPlayer(P.x + 11 + (Math.random() - 0.5)); P.vy = -9; break; }
+  }
   // pickups
   for (let i = coinsL.length - 1; i >= 0; i--) if (overlap(P, coinsL[i])) { coinsL.splice(i, 1); coinCount++; score += 10; P.chakra = Math.min(100, P.chakra + 2); sfx('coin'); }
   for (let i = items.length - 1; i >= 0; i--) {
@@ -368,7 +412,7 @@ function updatePlayer() {
     }
   }
   // finish scroll
-  if (P.x > 157 * T) winGame();
+  if (P.x > LV.flag * T) winGame();
 }
 function winGame() { if (state !== 'play') return; state = 'win'; sfx('win'); flash = 20; flashCol = '#ffe066'; }
 
@@ -403,7 +447,7 @@ function updateEnemies() {
     if (Math.abs(e.x - (cam.x + VW / 2)) > 900 && e.type !== 'boss') continue;      // sleep far away
     e.t++;
     if (e.type === 'grunt') {
-      e.vx = e.dir * 1.1; e.vy = Math.min(e.vy + GRAV, 14);
+      e.vx = e.dir * LV.eSpeed; e.vy = Math.min(e.vy + GRAV, 14);
       const ahead = Math.floor((e.x + (e.dir > 0 ? e.w + 2 : -2)) / T), feet = Math.floor((e.y + e.h + 4) / T);
       if (e.on && !solid(ahead, feet)) e.dir *= -1;
       const wasOn = e.on; e.on = false;
@@ -414,8 +458,8 @@ function updateEnemies() {
       e.vy = Math.min(e.vy + GRAV, 14); e.vx *= 0.8; e.on = false; moveX(e); const r = moveY(e); if (r && r.floor) e.on = true;
       e.dir = P.x < e.x ? -1 : 1;
       if (--e.cd <= 0 && Math.abs(P.x - e.x) < 420 && Math.abs(P.y - e.y) < 200) {
-        e.cd = 100; e.throw = 10;
-        const a = Math.atan2(P.y + 10 - e.y - 10, P.x - e.x) , sp = 4;
+        e.cd = LV.tCd; e.throw = 10;
+        const a = Math.atan2(P.y + 10 - e.y - 10, P.x - e.x) , sp = LV.sSpeed;
         projs.push({ type: 'shuriken', x: e.x + 12, y: e.y + 12, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 7, dmg: 1, friendly: false, life: 200, rot: 0 });
       }
       if (e.throw > 0) e.throw--;
@@ -437,27 +481,28 @@ function updateEnemies() {
 }
 function updateBoss(e) {
   e.vy = Math.min(e.vy + GRAV, 14);
-  if (!e.active) { if (Math.abs(P.x - e.x) < 560) { e.active = true; setBanner('ROGUE SHINOBI', 'Defeat him to break the seal!', '#ff5a5a'); sfx('boss'); } else { e.on = false; moveY(e) ; return; } }
+  if (!e.active) { if (Math.abs(P.x - e.x) < 560) { e.active = true; setBanner(LV.hard ? 'SHADOW JONIN' : 'ROGUE SHINOBI', 'Defeat him to break the seal!', '#ff5a5a'); sfx('boss'); } else { e.on = false; moveY(e) ; return; } }
   const dir = P.x < e.x ? -1 : 1, rage = e.hp < e.maxhp / 2;
   if (e.mode === 'idle') {
     e.vx *= 0.8; e.dir = dir;
     if (--e.cd <= 0) {
       const r = Math.random();
-      if (r < 0.34) { e.mode = 'jump'; e.vy = -14; e.vx = dir * (rage ? 5 : 3.5); }
+      if (r < 0.34) { e.mode = 'jump'; e.vy = -14; e.vx = dir * (rage ? 5 : 3.5) * LV.bossSpd; }
       else if (r < 0.67) { e.mode = 'throw'; e.n = rage ? 5 : 3; e.cd = 10; }
-      else { e.mode = 'charge'; e.cd = 55; e.vx = dir * (rage ? 5 : 3.6); }
+      else { e.mode = 'charge'; e.cd = 55; e.vx = dir * (rage ? 5 : 3.6) * LV.bossSpd; }
     }
-  } else if (e.mode === 'jump') { if (e.on && e.vy >= 0) { e.mode = 'idle'; e.cd = rage ? 45 : 80; shake = 8; burst(e.x + 23, e.y + 62, 14, '#a87', 4, 6, 20, 0.2); sfx('boss'); } }
+  } else if (e.mode === 'jump') { if (e.on && e.vy >= 0) { e.mode = 'idle'; e.cd = (rage ? 45 : 80) * (LV.hard ? 0.6 : 1); shake = 8; burst(e.x + 23, e.y + 62, 14, '#a87', 4, 6, 20, 0.2); sfx('boss'); } }
   else if (e.mode === 'throw') {
     if (--e.cd <= 0) {
-      const a = Math.atan2(P.y - e.y, P.x - e.x), sp = rage ? 5 : 4;
-      projs.push({ type: 'shuriken', x: e.x + 23, y: e.y + 20, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 8, dmg: 1, friendly: false, life: 220, rot: 0 });
+      const a0 = Math.atan2(P.y - e.y, P.x - e.x), sp = (rage ? 5 : 4) * (LV.hard ? 1.25 : 1);
+      for (const da of (LV.hard ? [-0.3, 0, 0.3] : [0]))
+        projs.push({ type: 'shuriken', x: e.x + 23, y: e.y + 20, vx: Math.cos(a0 + da) * sp, vy: Math.sin(a0 + da) * sp, r: 8, dmg: 1, friendly: false, life: 220, rot: 0 });
       e.cd = rage ? 10 : 16; if (--e.n <= 0) { e.mode = 'idle'; e.cd = rage ? 45 : 80; }
     }
   } else if (e.mode === 'charge') { if (--e.cd <= 0) { e.mode = 'idle'; e.cd = 60; } }
   e.on = false; moveX(e); if (e.vx === 0 && e.mode === 'charge') e.cd = 0;
   const r = moveY(e); if (r && r.floor) e.on = true;
-  if (e.x < 128 * T) e.x = 128 * T;
+  if (e.x < LV.arena * T) e.x = LV.arena * T;
 }
 
 /* ====================== UPDATE: PROJECTILES, ITEMS, MISC ====================== */
@@ -507,7 +552,10 @@ function updateMisc() {
 
 function update() {
   if (state === 'title') { if (jp('Enter') || jp('Space')) startGame(); return; }
-  if (state === 'over' || state === 'win') { if (jp('Enter')) { state = 'title'; } updateMisc(); return; }
+  if (state === 'over' || state === 'win') {
+    if (jp('Enter')) { if (state === 'win' && level < LEVELS.length - 1) loadLevel(level + 1); else state = 'title'; }
+    updateMisc(); return;
+  }
   if (jp('KeyP')) { state = state === 'pause' ? 'play' : 'pause'; }
   if (state === 'pause') return;
   if (hitstop > 0) { hitstop--; return; }
@@ -521,9 +569,16 @@ function drawBackground() {
   const g = ctx.createLinearGradient(0, 0, 0, VH);
   g.addColorStop(0, '#4aa8ff'); g.addColorStop(0.65, '#bfe6ff'); g.addColorStop(1, '#ffe9bf');
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(760, 90, 44, 0, 7); ctx.fill();
+  if (!LV.night) { ctx.fillStyle = '#fff6c8'; ctx.beginPath(); ctx.arc(760, 90, 44, 0, 7); ctx.fill(); }
+  if (LV.night) {
+    ctx.fillStyle = 'rgba(8,10,45,.62)'; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 60; i++) ctx.fillRect((i * 173 + 40) % VW, (i * 97) % 300, i % 5 ? 1.5 : 2.5, i % 5 ? 1.5 : 2.5);
+    ctx.fillStyle = '#e9ecff'; ctx.beginPath(); ctx.arc(760, 90, 40, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(8,10,45,.55)'; ctx.beginPath(); ctx.arc(774, 82, 36, 0, 7); ctx.fill();
+  }
   // clouds
-  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  ctx.fillStyle = LV.night ? 'rgba(120,120,170,.35)' : 'rgba(255,255,255,.85)';
   for (let i = 0; i < 9; i++) {
     const x = ((i * 230 - cam.x * 0.1) % (VW + 260) + VW + 260) % (VW + 260) - 130, y = 50 + (i * 53) % 150;
     ctx.beginPath(); ctx.arc(x, y, 22, 0, 7); ctx.arc(x + 26, y - 8, 28, 0, 7); ctx.arc(x + 54, y, 22, 0, 7); ctx.fill();
@@ -552,6 +607,7 @@ function drawBackground() {
     ctx.fillStyle = '#a2412d'; ctx.beginPath(); ctx.moveTo(x + 200, 470); ctx.lineTo(x + 245, 430); ctx.lineTo(x + 290, 470); ctx.fill();
     ctx.fillStyle = '#e8d6a8'; ctx.fillRect(x + 212, 470, 66, 20);
   }
+  if (LV.night) { ctx.fillStyle = 'rgba(8,10,45,.45)'; ctx.fillRect(0, 0, VW, VH); }
 }
 function drawTile(v, x, y, off) {
   y -= off;
@@ -572,6 +628,8 @@ function drawTile(v, x, y, off) {
   else if (v === 5) {
     ctx.fillStyle = '#8b94a0'; ctx.fillRect(x, y, T, T); ctx.fillStyle = '#aab3be'; ctx.fillRect(x, y, T, 3); ctx.fillRect(x, y, 3, T);
     ctx.fillStyle = '#69727e'; ctx.fillRect(x, y + T - 3, T, 3); ctx.fillRect(x + T - 3, y, 3, T);
+  } else if (v === 7) {
+    for (let i = 0; i < 3; i++) { const sx = x + i * 11; ctx.fillStyle = '#b9c0cc'; ctx.beginPath(); ctx.moveTo(sx, y + T); ctx.lineTo(sx + 5.5, y + 6); ctx.lineTo(sx + 11, y + T); ctx.fill(); ctx.fillStyle = '#e24'; ctx.beginPath(); ctx.moveTo(sx + 3, y + 13); ctx.lineTo(sx + 5.5, y + 6); ctx.lineTo(sx + 8, y + 13); ctx.fill(); }
   } else if (v === 6) {
     const a = 0.45 + 0.2 * Math.sin(time * 0.1 + y * 0.05);
     ctx.fillStyle = `rgba(160,90,255,${a})`; ctx.fillRect(x, y, T, T);
@@ -655,7 +713,7 @@ function drawEnemy(e) {
   ctx.save();
   if (e.type === 'boss') {
     const cx = e.x + e.w / 2; ctx.translate(cx, e.y); ctx.scale(e.dir > 0 ? 1 : -1, 1);
-    const body = fl ? '#fff' : '#17151f';
+    const body = fl ? '#fff' : (LV.hard ? '#2a1342' : '#17151f');
     ctx.fillStyle = body; ctx.fillRect(-23, 20, 46, 42);
     ctx.fillStyle = fl ? '#fff' : '#c21c2c'; [[-16, 34], [4, 44], [-6, 26], [8, 30]].forEach(c => { ctx.beginPath(); ctx.arc(c[0] + 6, c[1], 6, 0, 7); ctx.arc(c[0] + 12, c[1] + 2, 5, 0, 7); ctx.fill(); });
     ctx.fillStyle = fl ? '#fff' : '#ffb74a'; ctx.beginPath(); ctx.arc(0, 12, 14, 0, 7); ctx.fill();
@@ -712,7 +770,7 @@ function drawWorld() {
     const b = bumps[tx + ',' + ty]; drawTile(v, tx * T, ty * T, b ? Math.sin(b / 8 * Math.PI) * 8 : 0);
   }
   // end scroll
-  const fx = 157 * T;
+  const fx = LV.flag * T;
   ctx.fillStyle = '#d9d9d9'; ctx.fillRect(fx + 10, 6 * T, 6, 9 * T);
   ctx.fillStyle = '#f4e3b0'; ctx.fillRect(fx - 40, 6 * T + 4, 54, 40); ctx.strokeStyle = '#a06a1a'; ctx.lineWidth = 3; ctx.strokeRect(fx - 40, 6 * T + 4, 54, 40);
   ctx.strokeStyle = '#c33'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(fx - 13, 6 * T + 24, 10, 0, 5); ctx.stroke(); ctx.beginPath(); ctx.arc(fx - 13, 6 * T + 24, 4, 0, 5); ctx.stroke();
@@ -770,18 +828,19 @@ function drawHUD() {
   txt('CHAKRA', bx + 4, by + 14, 12, '#fff');
   txt(P.form === 'base' ? 'Naruto' : FORMS[P.form].name.toUpperCase(), 18, 112, 16, { base: '#fff', sage: '#ffa23c', kurama: '#ffd51a', baryon: '#ff5a1f' }[P.form]);
   // right side
+  txt('LEVEL ' + level, VW - 18, 100, 16, '#c8d4ff', 'right');
   txt('RYO ' + coinCount, VW - 18, 30, 18, '#ffd23c', 'right');
   txt('SCORE ' + String(score).padStart(6, '0'), VW - 18, 54, 18, '#fff', 'right');
   // shadow clone timer
   if (clones.length) txt('CLONES x' + clones.length, VW - 18, 78, 14, '#9cf', 'right');
   // controls bar
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, VH - 22, VW, 22);
-  txt('←→ move   SPACE jump   J kunai   K rasengan   L shadow clone   1 sage   2 kurama   3 baryon   P pause', VW / 2, VH - 6, 12, '#ddd', 'center');
+  txt('←→ move   SPACE jump   Z kunai   X rasengan   C shadow clone   1 sage   2 kurama   3 baryon   P pause', VW / 2, VH - 6, 12, '#ddd', 'center');
   // boss bar
   if (boss && !boss.dead && boss.active) {
     const w = 360, x = VW / 2 - w / 2, y = 20;
     ctx.fillStyle = '#220'; ctx.fillRect(x, y, w, 14); ctx.fillStyle = '#d22'; ctx.fillRect(x, y, w * Math.max(0, boss.hp) / boss.maxhp, 14);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, 14); txt('ROGUE SHINOBI', VW / 2, y + 36, 13, '#fff', 'center');
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(x, y, w, 14); txt(LV.hard ? 'SHADOW JONIN' : 'ROGUE SHINOBI', VW / 2, y + 36, 13, '#fff', 'center');
   }
   if (banner) {
     const a = Math.min(1, banner.t / 25), sz = banner.small ? 28 : 54;
@@ -798,12 +857,12 @@ function overlayScreen(title, lines, col) {
 
 function render() {
   if (state === 'title') {
-    cam = cam || { x: 0 }; if (!grid) { buildLevel(); P = newPlayer(3 * T); }
+    cam = cam || { x: 0 }; if (!grid) { setLevel(1); buildLevel(); P = newPlayer(3 * T); }
     cam.x = (time++ * 1.2) % 2000; drawBackground();
     ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 440, VW, 104);
     drawNaruto(430, 380, 1, ['base','sage','kurama','baryon'][Math.floor(time / 90) % 4], time * 0.2, 1, true, 3);
     overlayScreen('SHINOBI RUN', ['Believe it — run, jump & stomp through the Leaf Village!', '',
-      'J kunai · K RASENGAN · L SHADOW CLONE JUTSU', '1 SAGE MODE (25) · 2 KURAMA MODE (50) · 3 BARYON MODE (90)', 'Collect chakra scrolls and ramen · break the seal · reach the scroll', '', '> PRESS ENTER TO START <'], '#ff9a1a');
+      'Z kunai · X RASENGAN · C SHADOW CLONE JUTSU', '1 SAGE MODE (25) · 2 KURAMA MODE (50) · 3 BARYON MODE (90)', 'Collect chakra scrolls and ramen · break the seal · reach the scroll', '', '> PRESS ENTER TO START <'], '#ff9a1a');
     return;
   }
   drawBackground(); drawWorld();
@@ -813,7 +872,11 @@ function render() {
   drawHUD();
   if (state === 'pause') overlayScreen('PAUSED', ['Press P to resume'], '#fff');
   if (state === 'over') overlayScreen('GAME OVER', ['Score ' + score + '  ·  Ryo ' + coinCount, '', '> PRESS ENTER <'], '#ff5a5a');
-  if (state === 'win') overlayScreen('MISSION COMPLETE!', ['The Leaf Village is safe, Hokage-to-be!', 'Score ' + score + '  ·  Ryo ' + coinCount + '  ·  Lives ' + lives, '', '> PRESS ENTER <'], '#ffe066');
+  if (state === 'win') {
+    const more = level < LEVELS.length - 1;
+    overlayScreen(more ? 'LEVEL ' + level + ' CLEAR!' : 'MISSION COMPLETE!', [more ? 'Next up: Level ' + (level + 1) + ' - ' + LEVELS[level + 1].name + ' (harder!)' : 'The Leaf Village is safe, Hokage-to-be!',
+      'Score ' + score + '  ·  Ryo ' + coinCount + '  ·  Lives ' + lives, '', more ? '> PRESS ENTER FOR LEVEL ' + (level + 1) + ' <' : '> PRESS ENTER <'], '#ffe066');
+  }
 }
 
 /* ====================== LOOP ====================== */
@@ -823,9 +886,9 @@ function frame(now) {
   while (acc >= 1000 / 60) { update(); for (const k in pressed) delete pressed[k]; acc -= 1000 / 60; }
   render(); requestAnimationFrame(frame);
 }
-buildLevel(); P = newPlayer(3 * T); cam = { x: 0 };
+setLevel(1); buildLevel(); P = newPlayer(3 * T); cam = { x: 0 };
 requestAnimationFrame(frame);
-window.__game = { get state() { return state; }, get P() { return P; }, get enemies() { return enemies; } };
+window.__game = { loadLevel, get level() { return level; }, get state() { return state; }, get P() { return P; }, get enemies() { return enemies; } };
 </script>
 </body>
 </html>
